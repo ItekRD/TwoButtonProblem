@@ -17,8 +17,8 @@
 #endif
 
 #if deButtonFunction
-#define deCapSwButton			1
-#define deChangePinMod			1
+#define deCapRdyButton			1
+#define deRxButtonfunc			1
 #endif
 /* -------------------------------------------------- */
 #if deDebugFunction

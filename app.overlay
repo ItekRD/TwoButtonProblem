@@ -27,5 +27,13 @@
 };
 
 &button3 {
-	gpios = <&gpio0 8 0>;
+	gpios = <&gpio0 25 0>;
+};
+
+&led3 {
+	gpios = <&gpio0 16 0>;
+};
+
+&led0 {
+	gpios = <&gpio0 13 0>;
 };

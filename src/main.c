@@ -29,7 +29,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #define UART_BUF_SIZE CONFIG_BT_NUS_UART_BUFFER_SIZE
 #define UART_WAIT_FOR_BUF_DELAY K_MSEC(50)
 #define UART_WAIT_FOR_RX CONFIG_BT_NUS_UART_RX_WAIT_TIME
-
+static struct k_work_delayable button_enable_work;
 static K_SEM_DEFINE(ble_init_ok, 0, 1);
 
 static struct bt_conn *current_conn;
@@ -45,8 +45,8 @@ static char rx_buf[MSG_SIZE];
 static int rx_buf_pos;
 #endif
 #if deButtonFunction
-static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(SW2_NODE, gpios,{0});
-static const struct gpio_dt_spec Rxbutton = GPIO_DT_SPEC_GET_OR(SW3_NODE, gpios,{0});
+static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(SW0_NODE, gpios,{0});
+static const struct gpio_dt_spec Rxbutton = GPIO_DT_SPEC_GET_OR(SW1_NODE, gpios,{0});
 static struct gpio_callback button_cb_data;
 #endif
 struct uart_data_t {
@@ -72,6 +72,109 @@ UART_ASYNC_ADAPTER_INST_DEFINE(async_adapter);
 #else
 static const struct device *const async_adapter;
 #endif
+
+#if deButtonFunction
+#if deCapRdyButton
+void CapRdyButton_enable_work_handler(struct k_work *work)
+{
+    LOG_INF("Re-enabling button interrupts.");
+    gpio_pin_interrupt_configure_dt(&button, GPIO_INT_EDGE_TO_ACTIVE);
+}
+void CapRdyButtonInterrupt(const struct device *dev, struct gpio_callback *cb, uint32_t pins){
+#if deLED2_Chack2
+	if(u8LED3_SwitchFlag == deDisable){
+		u8LED3_SwitchFlag = deEnable;
+		de_LED4_ON;
+	}
+	else{
+		u8LED3_SwitchFlag = deDisable;
+		de_LED4_OFF;
+	}
+	// u8RxPinChangeLock = deEnable;
+#endif	
+	
+}
+void CapReadyPinInit(void){
+	int ret;
+	int err = 0;	
+	if (!gpio_is_ready_dt(&button)) {
+		printk("Error: button device %s is not ready\n",
+		       button.port->name);
+		return 0;
+	}
+	
+	ret = gpio_pin_configure_dt(&button, GPIO_INPUT);
+	if (ret != 0) {
+		printk("Error %d: failed to configure %s pin %d\n",
+		       ret, button.port->name, button.pin);
+		return 0;
+	}
+		ret = gpio_pin_interrupt_configure_dt(&button,GPIO_INT_EDGE_TO_ACTIVE );
+	if (ret != 0) {
+		printk("Error %d: failed to configure interrupt on %s pin %d\n",
+			ret, button.port->name, button.pin);
+		return 0;
+	}
+
+	gpio_init_callback(&button_cb_data, CapRdyButtonInterrupt, BIT(button.pin));
+	gpio_add_callback(button.port, &button_cb_data);
+	k_work_init_delayable(&button_enable_work, CapRdyButton_enable_work_handler);
+	// gpio_pin_interrupt_configure_dt(&Rxbutton, GPIO_INT_DISABLE);
+	
+}
+#endif
+#if deRxButtonfunc
+void RxButton_enable_work_handler(struct k_work *work)
+{
+    LOG_INF("Re-enabling button interrupts.");
+    gpio_pin_interrupt_configure_dt(&Rxbutton, GPIO_INT_EDGE_TO_ACTIVE);
+}
+void RxButtonInterrupt(const struct device *dev, struct gpio_callback *cb, uint32_t pins){
+#if deLED2_Chack2
+	if(u8LED2_SwitchFlag == deDisable){
+		u8LED2_SwitchFlag = deEnable;
+		de_LED3_ON;
+	}
+	else{
+		u8LED2_SwitchFlag = deDisable;
+		de_LED3_OFF;
+	}
+	// u8RxPinChangeLock = deEnable;
+#endif	
+	
+}
+
+void RxButtonEn(void){
+	int ret;
+	int err = 0;	
+	if (!gpio_is_ready_dt(&Rxbutton)) {
+		printk("Error: button device %s is not ready\n",
+		       Rxbutton.port->name);
+		return 0;
+	}
+	
+	ret = gpio_pin_configure_dt(&Rxbutton, GPIO_INPUT);
+	if (ret != 0) {
+		printk("Error %d: failed to configure %s pin %d\n",
+		       ret, Rxbutton.port->name, Rxbutton.pin);
+		return 0;
+	}
+		ret = gpio_pin_interrupt_configure_dt(&Rxbutton,GPIO_INT_EDGE_TO_ACTIVE );
+	if (ret != 0) {
+		printk("Error %d: failed to configure interrupt on %s pin %d\n",
+			ret, Rxbutton.port->name, Rxbutton.pin);
+		return 0;
+	}
+
+	gpio_init_callback(&button_cb_data, RxButtonInterrupt, BIT(Rxbutton.pin));
+	gpio_add_callback(Rxbutton.port, &button_cb_data);
+	k_work_init_delayable(&button_enable_work, RxButton_enable_work_handler);
+	// gpio_pin_interrupt_configure_dt(&Rxbutton, GPIO_INT_DISABLE);
+	
+}
+#endif
+#endif
+
 #if deMCU_URFunc
 void MCU_DataPro(void){ //MCU Data Process
 	if(u8MCUURGDDFlag == deEnable){		
@@ -93,13 +196,18 @@ void MCU_DataPro(void){ //MCU Data Process
 						if(u8LED1_SwitchFlag == deDisable){
 							u8LED1_SwitchFlag = deEnable;
 							de_LED2_ON;
+							RxButtonEn();
+							// gpio_pin_interrupt_configure_dt(&Rxbutton, GPIO_INT_DISABLE);
 						}
 						else{
 							u8LED1_SwitchFlag = deDisable;
 							de_LED2_OFF;
+							// RxButtonEn();
+							gpio_pin_interrupt_configure_dt(&Rxbutton, GPIO_INT_DISABLE);
+
 						}
 #endif					
-						u8RxPinChangeLock = deEnable;
+						// u8RxPinChangeLock = deEnable;
 					break;
 					default:
 					break;
@@ -704,10 +812,10 @@ static void configure_gpio(void)
 	int err;
 
 #ifdef CONFIG_BT_NUS_SECURITY_ENABLED
-	err = dk_buttons_init(button_changed);
-	if (err) {
-		LOG_ERR("Cannot init buttons (err: %d)", err);
-	}
+	// err = dk_buttons_init(button_changed);
+	// if (err) {
+		// LOG_ERR("Cannot init buttons (err: %d)", err);
+	// }
 #endif /* CONFIG_BT_NUS_SECURITY_ENABLED */
 
 	err = dk_leds_init();
@@ -715,67 +823,6 @@ static void configure_gpio(void)
 		LOG_ERR("Cannot init LEDs (err: %d)", err);
 	}
 }
-#if deButtonFunction
-#if deCapSwButton
-void CapRdyInterrupt(const struct device *dev, struct gpio_callback *cb, uint32_t pins){
-#if deLED2_Chack2
-	if(u8LED2_SwitchFlag == deDisable){
-		u8LED2_SwitchFlag = deEnable;
-		de_LED3_ON;
-	}
-	else{
-		u8LED2_SwitchFlag = deDisable;
-		de_LED3_OFF;
-	}
-	u8RxPinChangeLock = deEnable;
-#endif	
-	
-}
-
-void CapRdyinit(void){
-	int ret;
-	int err = 0;	
-	if (!gpio_is_ready_dt(&Rxbutton)) {
-		printk("Error: button device %s is not ready\n",
-		       Rxbutton.port->name);
-		return 0;
-	}
-	
-	ret = gpio_pin_configure_dt(&Rxbutton, GPIO_INPUT);
-	if (ret != 0) {
-		printk("Error %d: failed to configure %s pin %d\n",
-		       ret, Rxbutton.port->name, Rxbutton.pin);
-		return 0;
-	}
-		ret = gpio_pin_interrupt_configure_dt(&Rxbutton,GPIO_INT_EDGE_TO_ACTIVE );
-	if (ret != 0) {
-		printk("Error %d: failed to configure interrupt on %s pin %d\n",
-			ret, Rxbutton.port->name, Rxbutton.pin);
-		return 0;
-	}
-
-	gpio_init_callback(&button_cb_data, CapRdyInterrupt, BIT(Rxbutton.pin));
-	gpio_add_callback(Rxbutton.port, &button_cb_data);
-	
-}
-#endif
-#if deChangePinMod
-void RxPinChangeMod(void){
-	if(u8RxPinChangeLock == deEnable){
-		if(u8RxButChange == deDisable){
-			u8RxButChange = deEnable;
-			deMCU_UR_Off;
-			CapRdyinit();
-		}
-		else{
-			u8RxButChange = deEnable;
-			MCU_UR_Init();
-		}
-		u8RxPinChangeLock = deDisable;
-	}
-}
-#endif
-#endif
 int main(void)
 {
 	int blink_status = 0;
@@ -809,9 +856,14 @@ int main(void)
 	if (err) {
 		error();
 	}
-#if deCapSwButton
-	CapRdyinit();
+#if deRxButtonfunc
+	RxButtonEn();
+	gpio_pin_interrupt_configure_dt(&Rxbutton, GPIO_INT_DISABLE);
+
 #endif	
+#if deCapRdyButton
+	CapReadyPinInit();
+#endif
 	LOG_INF("Bluetooth initialized");
 
 	k_sem_give(&ble_init_ok);
@@ -832,16 +884,12 @@ int main(void)
 		LOG_ERR("Advertising failed to start (err %d)", err);
 		return 0;
 	}
-
 	for (;;) {
 		dk_set_led(DK_LED1, (++blink_status) % 2);
 		k_sleep(K_MSEC(RUN_LED_BLINK_INTERVAL));
 #if deMCU_URFunc		
 		MCU_DataPro();
 #endif	
-#if deChangePinMod
-		RxPinChangeMod();
-#endif
 	}
 }
 

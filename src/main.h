@@ -80,6 +80,7 @@ uint16_t u16MCUUR_BufNum			= 0;	// MCU Uart Buffer Number
 
 uint8_t u8LED1_SwitchFlag			= 0;
 uint8_t u8LED2_SwitchFlag			= 0;
+uint8_t	u8LED3_SwitchFlag			= 0;
 
 #if deUR_CheckValue1
 uint8_t	u8Debug1ValueBuf[] = {'!',' ','!','\n'};
@@ -93,8 +94,7 @@ uint8_t	u8Debug2ValueBuf[] = {'@',' ','@','\n'};
 #define SW2_NODE	DT_ALIAS(sw2)
 #define SW3_NODE	DT_ALIAS(sw3)
 #endif
-#if deChangePinMod
-uint8_t	u8RxPinChangeLock			= 0;
-uint8_t u8RxButChange				= 0; // Rx Button Change			
-#endif
+
+#define DEBOUNCE_DELAY_MS 1000 // 1 second debounce delay
+
 #endif
