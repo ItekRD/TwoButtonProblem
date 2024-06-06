@@ -165,18 +165,70 @@ void RxButtonEn(void){
 			ret, Rxbutton.port->name, Rxbutton.pin);
 		return 0;
 	}
-
+	
 	gpio_init_callback(&button_cb_data, RxButtonInterrupt, BIT(Rxbutton.pin));
 	gpio_add_callback(Rxbutton.port, &button_cb_data);
 	k_work_init_delayable(&button_enable_work, RxButton_enable_work_handler);
-	// gpio_pin_interrupt_configure_dt(&Rxbutton, GPIO_INT_DISABLE);
 	
 }
 #endif
 #endif
 
+#ifdef CONFIG_BT_NUS_SECURITY_ENABLED
+static void num_comp_reply(bool accept)
+{
+	if (accept) {
+		bt_conn_auth_passkey_confirm(auth_conn);
+		LOG_INF("Numeric Match, conn %p", (void *)auth_conn);
+	} else {
+		bt_conn_auth_cancel(auth_conn);
+		LOG_INF("Numeric Reject, conn %p", (void *)auth_conn);
+	}
+
+	bt_conn_unref(auth_conn);
+	auth_conn = NULL;
+}
+
+void button_changed(uint32_t button_state, uint32_t has_changed)
+{
+	uint32_t buttons = button_state & has_changed;
+	if (buttons & KEY_PASSKEY_ACCEPT) {
+		if(u8LED3_SwitchFlag == deDisable){
+			u8LED3_SwitchFlag = deEnable;
+			de_LED4_ON;
+		}
+		else{
+			u8LED3_SwitchFlag = deDisable;
+			de_LED4_OFF;
+		}	
+	}
+	if (buttons & KEY_PASSKEY_REJECT) {
+		if(u8LED2_SwitchFlag == deDisable){
+			u8LED2_SwitchFlag = deEnable;
+			de_LED3_ON;
+		}
+		else{
+			u8LED2_SwitchFlag = deDisable;
+			de_LED3_OFF;
+		}
+	}
+#if deButtonSampleCode
+	if (auth_conn) {
+		if (buttons & KEY_PASSKEY_ACCEPT) {
+			num_comp_reply(true);
+		}
+
+		if (buttons & KEY_PASSKEY_REJECT) {
+			num_comp_reply(false);
+		}
+	}
+#endif	
+}
+#endif /* CONFIG_BT_NUS_SECURITY_ENABLED */
+
 #if deMCU_URFunc
 void MCU_DataPro(void){ //MCU Data Process
+	int err,ret;
 	if(u8MCUURGDDFlag == deEnable){		
 #if deLED2_Chack1		
 		if(u8LED2_SwitchFlag == deDisable){
@@ -196,15 +248,61 @@ void MCU_DataPro(void){ //MCU Data Process
 						if(u8LED1_SwitchFlag == deDisable){
 							u8LED1_SwitchFlag = deEnable;
 							de_LED2_ON;
-							RxButtonEn();
+							err = dk_buttons_init(button_changed);
+							if (err) {
+								LOG_ERR("Cannot init buttons (err: %d)", err);
+							}
+
+							// ret = gpio_pin_configure_dt(&Rxbutton, GPIO_INPUT);
+							// if (ret != 0) {
+								// printk("Error %d: failed to configure %s pin %d\n",
+									   // ret, Rxbutton.port->name, Rxbutton.pin);
+								// return 0;
+							// }
+
+							// err = dk_buttons_init(button_changed);
+							// err = gpio_pin_interrupt_configure_dt(&button,GPIO_INT_DISABLE);
+							// if (err) {
+								// LOG_ERR("Cannot disable callbacks()");
+								// return err;
+							// }
+							// err = dk_buttons_init(button_changed);
+							// if (err) {
+								// LOG_ERR("Cannot init buttons (err: %d)", err);
+							// }
+#if deRxButtonfunc							
+							// RxButtonEn();
 							// gpio_pin_interrupt_configure_dt(&Rxbutton, GPIO_INT_DISABLE);
+#endif
 						}
 						else{
 							u8LED1_SwitchFlag = deDisable;
 							de_LED2_OFF;
+							err = dk_buttons_init(NULL);
+							if (err) {
+								LOG_ERR("Cannot init buttons (err: %d)", err);
+							}
+							CapReadyPinInit();
+							// RxButtonEn();
+							// CapReadyPinInit();
+							// ret = gpio_pin_configure_dt(&Rxbutton, GPIO_DISCONNECTED);
+							// if (ret != 0) {
+								// printk("Error %d: failed to configure %s pin %d\n",
+									   // ret, Rxbutton.port->name, Rxbutton.pin);
+								// return 0;
+							// }
+
+							// CapReadyPinInit();
+							// err = gpio_pin_interrupt_configure_dt(&Rxbutton,GPIO_INT_DISABLE);
+							// if (err) {
+								// LOG_ERR("Cannot disable callbacks()");
+								// return err;
+							// }
+
+#if deRxButtonfunc							
 							// RxButtonEn();
 							gpio_pin_interrupt_configure_dt(&Rxbutton, GPIO_INT_DISABLE);
-
+#endif
 						}
 #endif					
 						// u8RxPinChangeLock = deEnable;
@@ -220,6 +318,7 @@ void MCU_DataPro(void){ //MCU Data Process
 		u8MCUURGDDFlag = deDisable;	
 	}
 }
+
 void MCU_SendData(uint8_t* MCU_DataBuff,uint8_t MCU_DataLen){
 	for(int i = 0; i < MCU_DataLen;i++){
 		uart_poll_out(MCU_uart, MCU_DataBuff[i]);
@@ -776,37 +875,6 @@ void error(void)
 	}
 }
 
-#ifdef CONFIG_BT_NUS_SECURITY_ENABLED
-static void num_comp_reply(bool accept)
-{
-	if (accept) {
-		bt_conn_auth_passkey_confirm(auth_conn);
-		LOG_INF("Numeric Match, conn %p", (void *)auth_conn);
-	} else {
-		bt_conn_auth_cancel(auth_conn);
-		LOG_INF("Numeric Reject, conn %p", (void *)auth_conn);
-	}
-
-	bt_conn_unref(auth_conn);
-	auth_conn = NULL;
-}
-
-void button_changed(uint32_t button_state, uint32_t has_changed)
-{
-	uint32_t buttons = button_state & has_changed;
-
-	if (auth_conn) {
-		if (buttons & KEY_PASSKEY_ACCEPT) {
-			num_comp_reply(true);
-		}
-
-		if (buttons & KEY_PASSKEY_REJECT) {
-			num_comp_reply(false);
-		}
-	}
-}
-#endif /* CONFIG_BT_NUS_SECURITY_ENABLED */
-
 static void configure_gpio(void)
 {
 	int err;
@@ -816,6 +884,7 @@ static void configure_gpio(void)
 	// if (err) {
 		// LOG_ERR("Cannot init buttons (err: %d)", err);
 	// }
+	
 #endif /* CONFIG_BT_NUS_SECURITY_ENABLED */
 
 	err = dk_leds_init();
@@ -858,7 +927,7 @@ int main(void)
 	}
 #if deRxButtonfunc
 	RxButtonEn();
-	gpio_pin_interrupt_configure_dt(&Rxbutton, GPIO_INT_DISABLE);
+	// gpio_pin_interrupt_configure_dt(&Rxbutton, GPIO_INT_DISABLE);
 
 #endif	
 #if deCapRdyButton

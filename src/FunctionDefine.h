@@ -5,6 +5,7 @@
 
 #define deUR_SampleCode			0
 #define deMCU_UR_SampleCode		0
+#define deButtonSampleCode		0
 /* -------------------------------------------------- */
 #define deShareFunction			1
 #define deUartFunction			1
@@ -18,7 +19,7 @@
 
 #if deButtonFunction
 #define deCapRdyButton			1
-#define deRxButtonfunc			1
+#define deRxButtonfunc			0
 #endif
 /* -------------------------------------------------- */
 #if deDebugFunction
